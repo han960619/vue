@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Document</title>
+</head>
+<body>
+<div>数据根据输入的数值去改变</div>
+<div id="app">
+    <input v-model="element" type="text">
+    <div>做咩：{{element}}</div>
+    {{text}}
+</div>
+
+<script>
+
+    function Vue(options) {
+        this.data = options.data;
+        observer(this.data);
+        id = options.el; // 拿到绑定Id
+        dom = createDom(document.getElementById(id),this.data);  // 将绑定dom 和 vm 去做后续操作。 
+        
+        document.getElementById(id).appendChild(dom);
+    }
+    
+    
+    function definePro(obj, key, val) {
+        Object.defineProperty(obj, key, {
+            get: function() {  // 将该值赋值给其他时触发。 例如 var a = key
+                return val;
+            },
+            set: function(newVal) {  // 给key赋值的时候触发。 例如 key = ...
+                if(newVal === val) return;
+                val = newVal;     // 替换vm中的data中的某个属性、
+                console.log(val) 
+            } 
+        })
+    }
+
+    // 为每个data的属性设置set get 方法
+    function observer(obj) {
+        Object.keys(obj).forEach(function(key) {
+            definePro(obj, key, obj[key])
+        })
+    }
+     
+
+    // 对绑定dom 进行操作
+    function createDom(bindDom, data) {
+        var virtualDom = document.createDocumentFragment();  // 可以看做创建一个虚拟dom
+        var child;
+
+        while(child = bindDom.firstChild) {  // 将原dom所有子节点抽出 放进 虚拟dom, 处理完后返回给原dom
+            complice(child, data);   // 对子节点进行操作
+            virtualDom.appendChild(child);
+        }
+
+        return virtualDom;
+    }
+
+    function complice(childDom, data) {
+        var reg = /\{\{(.*)\}\}/;
+        if(childDom.nodeType == 1) {   // nodeType 判断子节点是元素节点还是文本节点
+
+            if(reg.test(childDom.innerHTML)){
+                var name = RegExp.$1;  // 拿到{{}}中的内容
+                var _html = childDom.innerHTML;
+                childDom.innerHTML = _html.replace(reg.exec(_html)[0],data[name]); // 将{{}}中的内容包括符号替换成data中的值
+            }
+
+            var attr = childDom.attributes;   // 拿到子节点所有属性
+
+            for(let i of attr) {      // 遍历属性
+                if(i.nodeName == 'v-model'){  // 找到属性中是否存在v-model
+                    var name = i.nodeValue;  // 拿到v-model的属性名
+
+                    if(data[name]){  // 如果在vm中有改值的话
+
+                        // 根据标签的不同赋予做不同的设置
+                        if(childDom.tagName=='INPUT' || childDom.tagName=='TEXTAREA' || childDom.tagName=='SELECT'){
+
+                            childDom.addEventListener('input',function(e) {  // 将输入框的值赋予vm.data[name]
+                                data[name] = e.target.value;
+                            })
+                            childDom.addEventListener('change',function(e) {
+                                data[name] = e.target.value;
+                            })
+
+                            childDom.value = data[name];   
+                        }else {
+                            childDom.innerHTML = data[name];
+                        }
+                    }
+                    childDom.removeAttribute('v-model');
+                }
+            }
+  
+        }else {
+            if(reg.test(childDom.nodeValue)){
+                var name = RegExp.$1;
+                childDom.nodeValue = data[name];
+            }
+        }
+    }
+
+    var vm = new Vue({   // 实例化
+        el: 'app',       // 绑定的标签
+        data: {          // 数据
+            element: "元素节点",
+            text: "文本节点"
+        }
+    })
+</script>
+
+</body>
+</html>

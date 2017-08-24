@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Document</title>
+</head>
+<body>
+<div>视图根据数据去展现</div>
+<div id="app">
+    <input v-model="element" type="text">
+    <div>做咩：{{element}}</div>
+    {{text}}
+</div>
+
+<script>
+	function Vue(options) {
+		this.data = options.data;
+        id = options.el; // 拿到绑定Id
+
+        dom = createDom(document.getElementById(id),this);  // 将绑定dom 和 vm 去做后续操作。 
+        
+        document.getElementById(id).appendChild(dom);
+ 	}
+
+ 	// 对绑定dom 进行操作
+    function createDom(bindDom, vm) {
+        var virtualDom = document.createDocumentFragment();  // 可以看做创建一个虚拟dom
+        var child;
+
+        while(child = bindDom.firstChild) {  // 将原dom所有子节点抽出 放进 虚拟dom, 处理完后返回给原dom
+        	complice(child, vm);   // 对子节点进行操作
+        	virtualDom.appendChild(child);
+        }
+
+        return virtualDom;
+    }
+
+    function complice(childDom, vm) {
+    	var reg = /\{\{(.*)\}\}/;
+    	if(childDom.nodeType == 1) {   // nodeType 判断子节点是元素节点还是文本节点
+
+    		if(reg.test(childDom.innerHTML)){
+    			var name = RegExp.$1;  // 拿到{{}}中的内容
+    			var _html = childDom.innerHTML;
+    			childDom.innerHTML = _html.replace(reg.exec(_html)[0],vm.data[name]); // 将{{}}中的内容包括符号替换成data中的值
+    		}
+
+    		var attr = childDom.attributes;   // 拿到子节点所有属性
+
+            for(let i of attr) {      // 遍历属性
+            	if(i.nodeName == 'v-model'){  // 找到属性中是否存在v-model
+            		var name = i.nodeValue;  // 拿到v-model的属性名
+
+                    if(vm.data[name]){  // 如果在vm中有改值的话
+                    	// 根据标签的不同赋予做不同的设置
+                    	if(childDom.tagName=='INPUT' || childDom.tagName=='TEXTAREA' || childDom.tagName=='SELECT'){
+	            			childDom.value = vm.data[name];   
+	            		}else {
+	                        childDom.innerHTML = vm.data[name];
+	            		}
+                    }
+            		childDom.removeAttribute('v-model');
+            	}
+            }
+  
+    	}else {
+    		if(reg.test(childDom.nodeValue)){
+    			var name = RegExp.$1;
+	            childDom.nodeValue = vm.data[name];
+    		}
+    	}
+    }
+
+	var vm = new Vue({   // 实例化
+		el: 'app',       // 绑定的标签
+		data: {          // 数据
+			element: "元素节点",
+			text: "文本节点"
+		}
+	})
+</script>
+
+</body>
+</html>

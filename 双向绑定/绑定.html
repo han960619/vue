@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Document</title>
+</head>
+<body>
+<h2>数据根据输入的数值去改变</h2>
+<div id="app">
+    <div>{{text}}</div>
+    <input v-model="element" type="text">
+    <div>大飞飞：{{element}}</div>
+    {{element}}
+</div>
+
+<script>
+
+    function Vue(options) {  
+        this.data = options.data;
+        observer(this.data); // 为每个data设get set方法
+        id = options.el; // 拿到绑定Id
+        dom = createDom(document.getElementById(id),this.data);  // 将绑定dom 和 vm 去做后续操作。 
+        
+        document.getElementById(id).appendChild(dom);
+    }
+
+/* 准备工作 */
+    // 为每个data的属性设置set get 方法
+    function observer(obj) {
+        Object.keys(obj).forEach(function(key) {
+            definePro(obj, key, obj[key])
+        })
+    }
+
+    function definePro(obj, key, val) {
+        
+        var dep = new Dep();
+
+        Object.defineProperty(obj, key, {
+            get: function() {  // 将该值赋值给其他时触发。 例如 var a = key
+            	if(Dep.target) {
+            		dep.addSub(Dep.target)  // 订阅
+            	}
+                return val;
+            },
+            set: function(newVal) {  // 给key赋值的时候触发。 例如 key = ...
+                if(newVal === val) return;
+                var oldVal = val;
+                val = newVal;     // 替换vm中的data中的某个属性、
+                dep.notify(oldVal)   // 发布
+            } 
+        })
+    }
+
+    function Dep() {
+    	this.subs = []
+    }
+
+    Dep.prototype = {
+    	addSub: function(sub) {   // data赋值给元素时,添加对该元素的订阅
+    		this.subs.push(sub);
+    	},
+
+    	notify: function(oldVal) { 
+    		this.subs.forEach(function(sub) {  // 当data被赋值时，也就是data值被修改时 发布
+    			sub.update(oldVal);   // 去更新dom;
+    		})
+    	}
+    }
+
+    function Watcher(data, childDom, name) {
+    	Dep.target = this;  // 将自己赋予一个全局变量
+    	this.name = name;
+    	this.childDom = childDom;
+    	this.data = data;
+    	this.update();
+    	Dep.target = null;
+    }
+
+    Watcher.prototype = {
+    	update: function(oldVal) {   // 更新dom
+    		this.get();
+    		if(this.childDom.nodeType == 1){  // 判断元素节点
+    			var reg = /\{\{(.*)\}\}/;
+    			var _html = this.childDom.innerHTML;
+                if(reg.test(_html)){   // 初始化。 一开始dom是存在{{}}
+                	this.childDom.innerHTML = _html.replace(reg.exec(_html)[0],this.value); 
+                	// 替换{{}}包括其中的内容为data值
+                }else {
+                	if(oldVal == '') {
+                		// 如果输入框被清空后，无法进行替换操作。
+                		this.childDom.innerHTML += this.value;
+                	}else {
+                		// 此时dom中已经没有{{}}，将 新值和旧值做替换
+                	    this.childDom.innerHTML = _html.replace(oldVal,this.value);
+                	}
+                }
+    		}else {
+    		    this.childDom.nodeValue = this.value;  // 文本节点
+    		}
+
+    	},
+
+    	get: function() {
+    		this.value = this.data[this.name]
+    	}
+    }
+
+/* 使用工作 */
+    // 对绑定dom 进行操作
+    function createDom(bindDom, data) {
+        var virtualDom = document.createDocumentFragment();  // 可以看做创建一个虚拟dom
+        var child;
+
+        while(child = bindDom.firstChild) {  // 将原dom所有子节点抽出 放进 虚拟dom, 处理完后返回给原dom
+            complice(child, data);   // 对子节点进行操作
+            virtualDom.appendChild(child);
+        }
+
+        return virtualDom;
+    }
+
+    function complice(childDom, data) {
+        var reg = /\{\{(.*)\}\}/;
+        if(childDom.nodeType == 1) {   // nodeType 判断子节点是元素节点还是文本节点
+            if(reg.test(childDom.innerHTML)){
+                var name = RegExp.$1;  // 拿到{{}}中的内容
+                var _html = childDom.innerHTML; 
+                new Watcher(data, childDom, name)  // 添加监听
+                // childDom.innerHTML = _html.replace(reg.exec(_html)[0],data[name]); 
+                // 将{{}}中的内容包括符号替换成data中的值
+            }
+
+            var attr = childDom.attributes;   // 拿到子节点所有属性
+
+            for(let i of attr) {      // 遍历属性
+                if(i.nodeName == 'v-model'){  // 找到属性中是否存在v-model
+                    var name = i.nodeValue;  // 拿到v-model的属性名
+
+                    if(data[name]){  // 如果在vm中有改值的话
+
+                        // 根据标签的不同赋予做不同的设置
+                        if(childDom.tagName=='INPUT' || childDom.tagName=='TEXTAREA' || childDom.tagName=='SELECT'){
+
+                            childDom.addEventListener('input',function(e) {  // 将输入框的值赋予vm.data[name]
+                                data[name] = e.target.value;
+                            })
+                            childDom.addEventListener('change',function(e) {
+                                data[name] = e.target.value;
+                            })
+
+                            childDom.value = data[name];  // 为输入框初始化赋值。
+                        }
+                    }
+                    childDom.removeAttribute('v-model');  // 删除v-model 浏览器dom树中将不存在该属性
+                }
+            }
+  
+        }else {
+            if(reg.test(childDom.nodeValue)){
+                var name = RegExp.$1;
+                // childDom.nodeValue = data[name];
+                new Watcher(data, childDom, name) // 添加监听
+            }
+        }
+    }
+
+
+
+    var vm = new Vue({   // 实例化
+        el: 'app',       // 绑定的标签
+        data: {          // 数据
+            element: "自己输入",
+            text: "以下的文本节点和元素节点内容会根据输入框的值发生变化"
+        }
+    })
+</script>
+
+</body>
+</html>
